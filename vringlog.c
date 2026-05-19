@@ -19,3 +19,19 @@ static char ring_buffer[BUFFER_SIZE][SLOT_SIZE];
 static int head = 0;  // Where new logs are written to
 static int tail = 0;  // Where old logs are read from
 static int count = 0; // Number of active logs current in queue
+                      //
+static dev_t dev_num;
+static struct cdev my_cdev;
+static struct class *my_class;
+static struct device
+    *my_device; // Pointer for automated node population in /dev
+
+static int vring_open(struct inode *inode, struct file *file) {
+  pr_info("vringlog: Device node opened successfully\n");
+  return 0;
+}
+
+static int vring_release(struct inode *inode, struct file *file) {
+  pr_info("vringlog: Device node closed safely\n");
+  return 0;
+}
