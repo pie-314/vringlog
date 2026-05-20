@@ -35,3 +35,53 @@ static int vring_release(struct inode *inode, struct file *file) {
   pr_info("vringlog: Device node closed safely\n");
   return 0;
 }
+
+static ssize_t vring_write(struct file *file, const char __user *user_buf,
+                           size_t len, loff_t *offset) {
+  if (count >= BUFFER_SIZE) {
+    pr_warn("vringlog: Queue is full, dropping write request\n");
+    return -ENOBUFS;
+  }
+
+  size_t bytes_to_copy = (len > SLOT_SIZE - 1) ? SLOT_SIZE - 1 : len;
+
+  // Secure memory lane validation crossing from User Frame to Kernel Frame
+  if (copy_from_user(ring_buffer[head], user_buf, bytes_to_copy)) {
+    return -EFAULT;
+  }
+
+  ring_buffer[head][bytes_to_copy] = '\0';
+  pr_info("vringlog: Stored log message slot [%d]: %s", head,
+          ring_buffer[head]);
+
+  head = (head + 1) % BUFFER_SIZE;
+  count++;
+
+  return len;
+}
+
+static ssize_t vring_read(struct file *file, char __user *user_buf, size_t len,
+                          loff_t *offset) {
+  if (*offset > 0) {
+    return 0;
+  }
+
+  if (count == 0) {
+    pr_info("vringlog: Queue is empty, nothing to extract\n");
+    return 0;
+  }
+
+  size_t bytes_to_copy = strlen(ring_buffer[tail]);
+
+  if (copy_to_user(user_buf, ring_buffer[tail], bytes_to_copy)) {
+    return -EFAULT;
+  }
+
+  pr_info("vringlog: Extracted log message slot [%d]\n", tail);
+
+  tail = (tail + 1) % BUFFER_SIZE;
+  count--;
+
+  *offset += bytes_to_copy;
+  return bytes_to_copy;
+}
