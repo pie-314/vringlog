@@ -1,1 +1,0 @@
-savedcmd_vringlog.ko := ld -r -m elf_x86_64 -z noexecstack --no-warn-rwx-segments --build-id=sha1  -T /usr/src/linux-headers-7.0.0-15-generic/scripts/module.lds -o vringlog.ko vringlog.o vringlog.mod.o .module-common.o
