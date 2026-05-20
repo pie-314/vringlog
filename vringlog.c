@@ -85,3 +85,64 @@ static ssize_t vring_read(struct file *file, char __user *user_buf, size_t len,
   *offset += bytes_to_copy;
   return bytes_to_copy;
 }
+
+static struct file_operations vring_fops = {
+    .owner = THIS_MODULE,
+    .open = vring_open,
+    .release = vring_release,
+    .read = vring_read,
+    .write = vring_write,
+};
+
+static int __init vringlog_init(void) {
+  pr_info("vringlog: Initializing character driver interface\n");
+
+  if (alloc_chrdev_region(&dev_num, 0, 1, "vringlog_dev") < 0) {
+    pr_err("vringlog: Major allocation failed\n");
+    return -1;
+  }
+  pr_info("vringlog: Allocated Major %d, Minor %d\n", MAJOR(dev_num),
+          MINOR(dev_num));
+
+  cdev_init(&my_cdev, &vring_fops);
+  if (cdev_add(&my_cdev, dev_num, 1) < 0) {
+    pr_err("vringlog: Character device registration inside kernel database "
+           "failed\n");
+    unregister_chrdev_region(dev_num, 1);
+    return -1;
+  }
+
+  my_class = class_create("vringlog_class");
+  if (IS_ERR(my_class)) {
+    pr_err("vringlog: Failed to create sysfs class pointer mapping\n");
+    cdev_del(&my_cdev);
+    unregister_chrdev_region(dev_num, 1);
+    return PTR_ERR(my_class);
+  }
+
+  my_device = device_create(my_class, NULL, dev_num, NULL, "vringlog");
+  if (IS_ERR(my_device)) {
+    pr_err("vringlog: Failed to map node footprint at /dev/vringlog\n");
+    class_destroy(my_class);
+    cdev_del(&my_cdev);
+    unregister_chrdev_region(dev_num, 1);
+    return PTR_ERR(my_device);
+  }
+
+  pr_info("vringlog: Hardware footprint online at /dev/vringlog\n");
+  return 0;
+}
+
+static void __exit vringlog_exit(void) {
+  pr_info("vringlog: Teardown routine starting\n");
+
+  device_destroy(my_class, dev_num);
+  class_destroy(my_class);
+  cdev_del(&my_cdev);
+  unregister_chrdev_region(dev_num, 1);
+
+  pr_info("vringlog: Module successfully purged from system core\n");
+}
+
+module_init(vringlog_init);
+module_exit(vringlog_exit);
